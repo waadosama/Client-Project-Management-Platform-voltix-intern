@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function Hero({ hero }) {
   return (
     <section className="hero" id="top">
@@ -9,9 +11,9 @@ export default function Hero({ hero }) {
         <p className="lede">{hero.subtitle}</p>
 
         <div className="hero-actions">
-          <a className="btn btn-primary btn-lg" href="#cta">
+          <Link className="btn btn-primary btn-lg" to="/login?next=%2Fdashboard">
             {hero.primaryCta}
-          </a>
+          </Link>
           <a className="btn btn-outline btn-lg" href="#how-it-works">
             {hero.secondaryCta} →
           </a>

@@ -17,20 +17,28 @@ through the API, so you can edit the copy in the database without touching the R
 client/                       # React frontend
   index.html
   src/
-    App.jsx                   # loads intro content from the API (with local fallback)
-    components/               # Navbar, Hero, Features, HowItWorks, Stats, CTA, Footer
-    data/fallback.js          # instant-render fallback copy
-    services/api.js           # fetch wrapper
+    App.jsx                    # routes: /  /login  /dashboard (protected)
+    context/AuthContext.jsx     # session restore, login/logout, 401 handling
+    components/
+      ProtectedRoute.jsx        # blocks private pages from anonymous visitors
+      Navbar, Hero, Features, HowItWorks, Stats, CTA, Footer
+    pages/
+      Landing.jsx               # public intro page
+      Login.jsx                 # /login
+      Dashboard.jsx             # /dashboard (requires a valid token)
+    data/fallback.js            # instant-render fallback copy
+    services/api.js             # fetch wrapper + JWT header
     styles.css
 server/                       # Node.js backend
   .env / .env.example
   src/
-    index.js                  # Express app + CORS + routes
-    config/db.js              # MongoDB connection
-    models/Intro.js           # Mongoose schema + default content
-    controllers/introController.js
-    routes/introRoutes.js
-    seed/seed.js              # inserts the default intro document
+    index.js                    # Express app + CORS + routes
+    config/db.js                # MongoDB connection
+    middleware/auth.js           # requireAuth (JWT) + requireRole (RBAC)
+    models/                     # User, Project, Intro
+    controllers/                # auth, project, intro
+    routes/                     # /api/auth, /api/projects, /api/intro
+    seed/seed.js                # intro copy + admin user + sample projects
 ```
 
 ## Getting started
@@ -41,7 +49,7 @@ Requires Node.js 18+ and a running MongoDB (default: `mongodb://127.0.0.1:27017`
 # 1. install dependencies
 npm run install:all
 
-# 2. seed the intro content into MongoDB
+# 2. seed intro content + admin account + sample projects
 npm run seed
 
 # 3. start the API (http://localhost:5000)  — terminal 1
@@ -51,31 +59,130 @@ npm run dev:server
 npm run dev:client
 ```
 
-Open http://localhost:5173 — the page fetches `/api/intro` through the Vite proxy.
+Open http://localhost:5173 — the landing page fetches `/api/intro` through the Vite proxy.
+
+## Authentication
+
+- **Algorithm:** JWT (HS256), signed with `JWT_SECRET`, valid for `JWT_EXPIRES_IN` (7 days).
+- **Passwords:** hashed with bcrypt (10 rounds), stored as `passwordHash`, never returned.
+- **Transport:** an **httpOnly cookie** (`cpmp_token`) — set by `POST /api/auth/login`, sent
+  automatically by the browser with `credentials: "include"`. JavaScript cannot read it,
+  so the token never appears in `localStorage`, in the page, or in frontend code.
+  `Authorization: Bearer <jwt>` is still accepted for server-to-server tools (curl, Postman, CI).
+- **Cookie flags:** `HttpOnly` · `SameSite=Lax` (CSRF protection) · `Path=/` ·
+  `Secure` when `NODE_ENV=production` · `Max-Age` matches `JWT_EXPIRES_IN`.
+- **Session restore:** on load the app calls `GET /api/auth/me` with the cookie; an
+  invalid/expired session clears the user and a global `auth:expired` event signs out
+  everywhere. `POST /api/auth/logout` expires the cookie server-side.
+
+**Seeded accounts** (admin credentials come from `server/.env`):
+
+| Role   | Email                 | Password    |
+| ------ | --------------------- | ----------- |
+| admin  | `admin@clientflow.io` | `Admin123!` |
+| member | `jane@clientflow.io`  | `Member123!`|
+
+**Protected pages** (React Router + `ProtectedRoute`):
+
+| Route        | Access            | Behaviour when anonymous                       |
+| ------------ | ----------------- | ---------------------------------------------- |
+| `/`          | public            | —                                              |
+| `/login`     | public            | sends signed-in users to their `next` target   |
+| `/dashboard` | authenticated     | redirected to `/login?next=/dashboard`         |
+
+**Protected APIs:**
+
+| Endpoint                | Access                                  |
+| ----------------------- | --------------------------------------- |
+| `GET /api/health`       | public                                  |
+| `GET /api/intro`        | public                                  |
+| `POST /api/auth/login`  | public                                  |
+| `GET /api/auth/me`      | any valid token                         |
+| `POST /api/auth/logout` | any valid token                         |
+| `GET /api/projects`     | any valid token — **own** projects only |
+| `POST /api/projects`    | any valid token                         |
+| `PUT /api/intro`        | **admin only** (403 for members)        |
+| `POST /api/auth/users`  | **admin only**                          |
 
 ## API
 
-| Method | Endpoint      | Description                                     |
-| ------ | ------------- | ----------------------------------------------- |
-| GET    | `/api/health` | Health check                                    |
-| GET    | `/api/intro`  | Intro page content (`source: database|defaults`) |
-| PUT    | `/api/intro`  | Update intro content (upsert)                   |
+| Method | Endpoint           | Auth    | Description                                       |
+| ------ | ------------------ | ------- | ------------------------------------------------- |
+| GET    | `/api/health`      | —       | Health check                                      |
+| GET    | `/api/intro`       | —       | Intro page content (`source: database`/`defaults`) |
+| PUT    | `/api/intro`       | admin   | Update intro content (deep merge, upsert)         |
+| POST   | `/api/auth/login`  | —       | `{email, password}` → sets session cookie + `{user, expiresAt}` |
+| GET    | `/api/auth/me`     | token   | Current user                                      |
+| POST   | `/api/auth/logout` | token   | Stateless logout                                  |
+| POST   | `/api/auth/users`  | admin   | Create an account `{name, email, password, role}` |
+| GET    | `/api/projects`    | token   | List the caller's projects                        |
+| POST   | `/api/projects`    | token   | Create a project owned by the caller              |
 
-Example — change the hero headline:
+Example — login with a cookie jar, then call a protected endpoint:
+
+```bash
+# login sets cpmp_token in the jar; nothing is exposed to JavaScript
+curl -i -c cookies.txt -X POST http://localhost:5000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@clientflow.io","password":"Admin123!"}'
+
+curl -b cookies.txt http://localhost:5000/api/projects
+curl -b cookies.txt http://localhost:5000/api/auth/me
+
+# log out — expires the cookie
+curl -i -b cookies.txt -c cookies.txt -X POST http://localhost:5000/api/auth/logout
+```
+
+The browser does this automatically via `credentials: "include"`; no token handling in JS.
+
+Example — update the hero headline (admin session required):
 
 ```bash
 curl -X PUT http://localhost:5000/api/intro \
   -H "Content-Type: application/json" \
+  -b cookies.txt \
   -d '{"hero":{"title":"Run every client project","highlight":"from one dashboard"}}'
 ```
 
-If MongoDB is unreachable, the API (and the page) fall back to the built-in default copy,
-so the landing page never breaks.
+Requests without a valid token return `401`; authenticated non-admins get `403`.
+If MongoDB is unreachable, the public landing content still falls back to the built-in
+defaults, so the intro page never breaks (login requires the database).
+
+### Generating a token
+
+The browser never sees a token (httpOnly cookie). The CLI below exists only for
+**server-to-server** clients (curl, Postman, CI) that cannot hold cookies:
+
+```bash
+# from the repo root
+npm run token                            # admin from server/.env
+npm run token -- jane@clientflow.io      # any user
+npm run token -- jane@clientflow.io Member123!   # also verifies the password
+npm run token -- secret                  # print a fresh JWT_SECRET to put in .env
+
+# or from server/
+npm run token -- user@example.com
+```
+
+Output is a raw token you can paste directly:
+
+```bash
+curl http://localhost:5000/api/projects \
+  -H "Authorization: Bearer <paste-token-here>"
+```
+
+The token carries `{ sub, email, role }` and expires after `JWT_EXPIRES_IN` (7 days).
+Rotating `JWT_SECRET` invalidates every previously issued token.
 
 ## Environment variables (`server/.env`)
 
-| Variable     | Default                                        |
-| ------------ | ---------------------------------------------- |
-| `PORT`       | `5000`                                         |
-| `MONGO_URI`  | `mongodb://127.0.0.1:27017/client_project_management` |
-| `CLIENT_URL` | `http://localhost:5173` (CORS origin)          |
+| Variable         | Default                                                           |
+| ---------------- | ----------------------------------------------------------------- |
+| `PORT`           | `5000`                                                            |
+| `MONGO_URI`      | `mongodb://127.0.0.1:27017/client_project_management`             |
+| `CLIENT_URL`     | `http://localhost:5173` (CORS origin)                             |
+| `JWT_SECRET`     | required — generate: `node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"` |
+| `JWT_EXPIRES_IN` | `7d`                                                              |
+| `ADMIN_EMAIL`    | `admin@clientflow.io`                                             |
+| `ADMIN_PASSWORD` | `Admin123!`                                                       |
+| `ADMIN_NAME`     | `Admin User`                                                      |

@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const LINKS = [
   { href: "#features", label: "Features" },
@@ -9,16 +11,23 @@ const LINKS = [
 
 export default function Navbar({ brand, tagline }) {
   const [open, setOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    await logout();
+    navigate("/", { replace: true });
+  }
 
   return (
     <header className="navbar">
-      <a className="brand" href="#top" aria-label={`${brand} home`}>
+      <Link className="brand" to="/" aria-label={`${brand} home`}>
         <span className="brand-mark">◆</span>
         <span className="brand-text">
           <strong>{brand}</strong>
           <small>{tagline}</small>
         </span>
-      </a>
+      </Link>
 
       <nav className={`nav-links ${open ? "open" : ""}`}>
         {LINKS.map((link) => (
@@ -29,12 +38,25 @@ export default function Navbar({ brand, tagline }) {
       </nav>
 
       <div className="nav-actions">
-        <a className="btn btn-ghost" href="#cta">
-          Sign in
-        </a>
-        <a className="btn btn-primary" href="#cta">
-          Get started
-        </a>
+        {user ? (
+          <>
+            <Link className="btn btn-ghost" to="/dashboard">
+              Dashboard
+            </Link>
+            <button className="btn btn-outline" onClick={handleLogout}>
+              Sign out
+            </button>
+          </>
+        ) : (
+          <>
+            <Link className="btn btn-ghost" to="/login">
+              Sign in
+            </Link>
+            <Link className="btn btn-primary" to="/login?next=%2Fdashboard">
+              Get started
+            </Link>
+          </>
+        )}
       </div>
 
       <button

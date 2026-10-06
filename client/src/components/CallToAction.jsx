@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export default function CallToAction({ cta }) {
   if (!cta?.title) return null;
 
@@ -9,9 +11,9 @@ export default function CallToAction({ cta }) {
           <p>{cta.subtitle}</p>
         </div>
         <div className="cta-actions">
-          <a className="btn btn-light btn-lg" href="#top">
+          <Link className="btn btn-light btn-lg" to="/login?next=%2Fdashboard">
             {cta.button}
-          </a>
+          </Link>
           <small>No credit card required</small>
         </div>
       </div>
