@@ -44,6 +44,10 @@ export async function api(path, { method = "GET", body, auth = true } = {}) {
 export const loginRequest = (email, password) =>
   api("/api/auth/login", { method: "POST", body: { email, password } });
 
+/** Public self-signup — creates a member account and signs the user in. */
+export const registerRequest = (name, email, password) =>
+  api("/api/auth/register", { method: "POST", body: { name, email, password } });
+
 export const fetchMe = () => api("/api/auth/me");
 
 export const logoutRequest = () => api("/api/auth/logout", { method: "POST" });
@@ -55,3 +59,17 @@ export const fetchProjects = () => api("/api/projects");
 
 export const createProject = (data) =>
   api("/api/projects", { method: "POST", body: data });
+
+export const updateProject = (id, data) =>
+  api(`/api/projects/${id}`, { method: "PUT", body: data });
+
+export const deleteProject = (id) => api(`/api/projects/${id}`, { method: "DELETE" });
+
+/* ---- Clients (a project is always assigned to one) ---- */
+export const fetchClients = () => api("/api/clients");
+
+export const createClient = (data) =>
+  api("/api/clients", { method: "POST", body: data });
+
+/* ---- Team directory (for assigning project members) ---- */
+export const fetchUsers = () => api("/api/auth/users");

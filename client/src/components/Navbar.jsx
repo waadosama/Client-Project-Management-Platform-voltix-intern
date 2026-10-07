@@ -52,7 +52,7 @@ export default function Navbar({ brand, tagline }) {
             <Link className="btn btn-ghost" to="/login">
               Sign in
             </Link>
-            <Link className="btn btn-primary" to="/login?next=%2Fdashboard">
+            <Link className="btn btn-primary" to="/signup?next=%2Fdashboard">
               Get started
             </Link>
           </>

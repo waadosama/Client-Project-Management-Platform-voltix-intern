@@ -11,7 +11,7 @@ export default function CallToAction({ cta }) {
           <p>{cta.subtitle}</p>
         </div>
         <div className="cta-actions">
-          <Link className="btn btn-light btn-lg" to="/login?next=%2Fdashboard">
+          <Link className="btn btn-light btn-lg" to="/signup?next=%2Fdashboard">
             {cta.button}
           </Link>
           <small>No credit card required</small>

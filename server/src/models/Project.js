@@ -9,7 +9,19 @@ const projectSchema = new mongoose.Schema(
       index: true,
     },
     name: { type: String, required: true, trim: true },
-    client: { type: String, required: true, trim: true },
+    description: { type: String, trim: true, default: "" },
+    /** The client this project belongs to. */
+    client: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Client",
+      required: true,
+      index: true,
+    },
+    /** Team members working on the project (many-to-many with User). */
+    teamMembers: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+      default: [],
+    },
     status: {
       type: String,
       enum: ["planning", "in-progress", "review", "delivered"],
@@ -21,5 +33,7 @@ const projectSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+projectSchema.index({ teamMembers: 1 });
 
 export const Project = mongoose.model("Project", projectSchema);

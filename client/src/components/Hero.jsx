@@ -11,7 +11,7 @@ export default function Hero({ hero }) {
         <p className="lede">{hero.subtitle}</p>
 
         <div className="hero-actions">
-          <Link className="btn btn-primary btn-lg" to="/login?next=%2Fdashboard">
+          <Link className="btn btn-primary btn-lg" to="/signup?next=%2Fdashboard">
             {hero.primaryCta}
           </Link>
           <a className="btn btn-outline btn-lg" href="#how-it-works">

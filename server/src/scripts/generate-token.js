@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "../config/env.js"; // server/.env — works from any working directory
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";

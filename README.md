@@ -35,10 +35,10 @@ server/                       # Node.js backend
     index.js                    # Express app + CORS + routes
     config/db.js                # MongoDB connection
     middleware/auth.js           # requireAuth (JWT) + requireRole (RBAC)
-    models/                     # User, Project, Intro
-    controllers/                # auth, project, intro
-    routes/                     # /api/auth, /api/projects, /api/intro
-    seed/seed.js                # intro copy + admin user + sample projects
+    models/                     # User, Client, Project, Intro
+    controllers/                # auth, client, project, intro
+    routes/                     # /api/auth, /api/projects, /api/clients, /api/intro
+    seed/seed.js                # intro copy + admin/member users + clients + sample projects
 ```
 
 ## Getting started
@@ -65,7 +65,8 @@ Open http://localhost:5173 — the landing page fetches `/api/intro` through the
 
 - **Algorithm:** JWT (HS256), signed with `JWT_SECRET`, valid for `JWT_EXPIRES_IN` (7 days).
 - **Passwords:** hashed with bcrypt (10 rounds), stored as `passwordHash`, never returned.
-- **Transport:** an **httpOnly cookie** (`cpmp_token`) — set by `POST /api/auth/login`, sent
+- **Transport:** an **httpOnly cookie** (`cpmp_token`) — set by `POST /api/auth/login`
+  or `POST /api/auth/register`, sent
   automatically by the browser with `credentials: "include"`. JavaScript cannot read it,
   so the token never appears in `localStorage`, in the page, or in frontend code.
   `Authorization: Bearer <jwt>` is still accepted for server-to-server tools (curl, Postman, CI).
@@ -74,6 +75,10 @@ Open http://localhost:5173 — the landing page fetches `/api/intro` through the
 - **Session restore:** on load the app calls `GET /api/auth/me` with the cookie; an
   invalid/expired session clears the user and a global `auth:expired` event signs out
   everywhere. `POST /api/auth/logout` expires the cookie server-side.
+- **Sign-up:** `POST /api/auth/register` (public, `/signup`) creates an account and signs
+  the user in straight away. The role is **hard-coded to `member` server-side** — the
+  request body can never grant admin. Admin accounts are still created by an admin
+  through `POST /api/auth/users`.
 
 **Seeded accounts** (admin credentials come from `server/.env`):
 
@@ -88,6 +93,7 @@ Open http://localhost:5173 — the landing page fetches `/api/intro` through the
 | ------------ | ----------------- | ---------------------------------------------- |
 | `/`          | public            | —                                              |
 | `/login`     | public            | sends signed-in users to their `next` target   |
+| `/signup`    | public            | creates a member account, then signs the user in |
 | `/dashboard` | authenticated     | redirected to `/login?next=/dashboard`         |
 
 **Protected APIs:**
@@ -97,12 +103,37 @@ Open http://localhost:5173 — the landing page fetches `/api/intro` through the
 | `GET /api/health`       | public                                  |
 | `GET /api/intro`        | public                                  |
 | `POST /api/auth/login`  | public                                  |
+| `POST /api/auth/register` | public — creates a **member** account  |
 | `GET /api/auth/me`      | any valid token                         |
 | `POST /api/auth/logout` | any valid token                         |
-| `GET /api/projects`     | any valid token — **own** projects only |
+| `GET /api/projects`     | any valid token — **owned or assigned** (admin sees all) |
 | `POST /api/projects`    | any valid token                         |
+| `GET /api/projects/:id` | owner, assigned member or admin         |
+| `PUT /api/projects/:id` | **owner or admin** — teammates get 403  |
+| `DELETE /api/projects/:id` | **owner or admin** — teammates get 403 |
+| `GET /api/clients`      | any valid token — client directory      |
+| `POST /api/clients`     | any valid token                         |
+| `GET /api/auth/users`   | any valid token — team directory        |
 | `PUT /api/intro`        | **admin only** (403 for members)        |
 | `POST /api/auth/users`  | **admin only**                          |
+
+### Project management
+
+A project holds a **name**, **description**, **status** (`planning` · `in-progress` ·
+`review` · `delivered`), **progress**, **budget** and **due date**, is assigned to
+exactly **one client** (`Client` collection) and to **any number of team members**
+(`teamMembers` → `User[]`).
+
+| Action                | Admin | Project owner | Assigned teammate | Anyone else |
+| --------------------- | ----- | ------------- | ----------------- | ----------- |
+| List / view           | ✅ all | ✅            | ✅                | ❌ 404      |
+| Create                | ✅     | ✅            | ✅                | ❌ 401      |
+| Update                | ✅ all | ✅            | ❌ 403            | ❌ 404      |
+| Delete                | ✅ all | ✅            | ❌ 403            | ❌ 404      |
+| Create/list clients   | ✅     | ✅            | ✅                | ❌ 401      |
+
+Projects someone cannot see return **404** (existence is never leaked); projects they
+can see but not edit return **403**.
 
 ## API
 
@@ -112,11 +143,18 @@ Open http://localhost:5173 — the landing page fetches `/api/intro` through the
 | GET    | `/api/intro`       | —       | Intro page content (`source: database`/`defaults`) |
 | PUT    | `/api/intro`       | admin   | Update intro content (deep merge, upsert)         |
 | POST   | `/api/auth/login`  | —       | `{email, password}` → sets session cookie + `{user, expiresAt}` |
+| POST   | `/api/auth/register` | —     | `{name, email, password}` → creates a **member** account, sets the session cookie (409 if the email exists, 400 when the password is under 8 characters) |
 | GET    | `/api/auth/me`     | token   | Current user                                      |
 | POST   | `/api/auth/logout` | token   | Stateless logout                                  |
 | POST   | `/api/auth/users`  | admin   | Create an account `{name, email, password, role}` |
-| GET    | `/api/projects`    | token   | List the caller's projects                        |
-| POST   | `/api/projects`    | token   | Create a project owned by the caller              |
+| GET    | `/api/auth/users`  | token   | Team directory `{id, name, email, role}` (for assignments) |
+| GET    | `/api/clients`     | token   | List clients, sorted by name                      |
+| POST   | `/api/clients`     | token   | Create a client `{name, contactName?, email?, …}` (409 on duplicate name) |
+| GET    | `/api/projects`    | token   | List projects owned by or assigned to the caller (admin: all) |
+| POST   | `/api/projects`    | token   | Create a project `{name, description?, client, status?, teamMembers?, …}` |
+| GET    | `/api/projects/:id`| token   | Fetch one project (owner, teammate or admin)      |
+| PUT    | `/api/projects/:id`| token   | Update project fields (owner or admin)            |
+| DELETE | `/api/projects/:id`| token   | Delete the project (owner or admin)               |
 
 Example — login with a cookie jar, then call a protected endpoint:
 

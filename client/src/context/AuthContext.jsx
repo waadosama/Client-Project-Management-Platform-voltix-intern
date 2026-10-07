@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { fetchMe, loginRequest, logoutRequest } from "../services/api.js";
+import { fetchMe, loginRequest, registerRequest, logoutRequest } from "../services/api.js";
 
 const AuthContext = createContext(null);
 
@@ -52,8 +52,15 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  // Self-signup: the API creates a member account and sets the session cookie.
+  const register = useCallback(async ({ name, email, password }) => {
+    const { user } = await registerRequest(name, email, password);
+    setUser(user);
+    return user;
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register }}>
       {children}
     </AuthContext.Provider>
   );
