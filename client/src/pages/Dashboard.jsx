@@ -45,6 +45,93 @@ const shortName = (name = "") => {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 };
 
+/** Feather-style stroke icons — decoration only, they add no behaviour. */
+function Icon({ name, size = 18 }) {
+  const paths = {
+    grid: (
+      <>
+        <rect x="3" y="3" width="7" height="7" rx="2" />
+        <rect x="14" y="3" width="7" height="7" rx="2" />
+        <rect x="3" y="14" width="7" height="7" rx="2" />
+        <rect x="14" y="14" width="7" height="7" rx="2" />
+      </>
+    ),
+    folder: (
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+    ),
+    bolt: <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />,
+    cash: (
+      <>
+        <rect x="2" y="6" width="20" height="12" rx="3" />
+        <circle cx="12" cy="12" r="2.5" />
+        <path d="M6 12h.01M18 12h.01" />
+      </>
+    ),
+    chart: (
+      <>
+        <path d="m3 17 5-5 4 3 6-7" />
+        <path d="M15 8h4v4" />
+      </>
+    ),
+    plus: <path d="M12 5v14M5 12h14" />,
+    globe: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18" />
+        <path d="M12 3a15 15 0 0 1 0 18 15 15 0 0 1 0-18Z" />
+      </>
+    ),
+    logout: (
+      <>
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <path d="m16 17 5-5-5-5" />
+        <path d="M21 12H9" />
+      </>
+    ),
+  };
+  return (
+    <svg
+      className="ico"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  );
+}
+
+/** Deterministic monogram tint, so a project keeps the same colour every render. */
+const MONO_COLORS = [
+  "#4f46e5",
+  "#0ea5e9",
+  "#f59e0b",
+  "#10b981",
+  "#ec4899",
+  "#8b5cf6",
+  "#f43f5e",
+  "#14b8a6",
+];
+
+const monogramStyle = (name = "?") => {
+  const color = MONO_COLORS[(name.charCodeAt(0) || 0) % MONO_COLORS.length];
+  return { background: `${color}1f`, color };
+};
+
+/** Dots for the per-status summary chips. */
+const STATUS_DOT = {
+  planning: "#94a3b8",
+  "in-progress": "#0ea5e9",
+  review: "#f59e0b",
+  delivered: "#10b981",
+};
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -246,6 +333,13 @@ export default function Dashboard() {
     return { active, budget, progress };
   }, [projects]);
 
+  // Per-status tally for the summary chips — derived from data already loaded.
+  const statusCounts = useMemo(() => {
+    const counts = { planning: 0, "in-progress": 0, review: 0, delivered: 0 };
+    for (const p of projects) counts[p.status] = (counts[p.status] || 0) + 1;
+    return counts;
+  }, [projects]);
+
   // People who can be assigned to a project (you are the owner, so not a member).
   const assignable = useMemo(
     () => users.filter((u) => String(u.id) !== String(user.id)),
@@ -254,43 +348,85 @@ export default function Dashboard() {
 
   return (
     <div className="dash">
-      <header className="dash-top">
-        <Link className="brand" to="/">
+      <aside className="dash-side">
+        <Link className="dash-side-brand" to="/">
           <span className="brand-mark">◆</span>
           <span className="brand-text">
             <strong>ClientFlow</strong>
-            <small>Private dashboard</small>
+            <small>Project workspace</small>
           </span>
         </Link>
 
-        <div className="dash-user">
-          <span className="avatar">{initials(user.name)}</span>
-          <span className="dash-user-name">
-            {user.name}
-            <small>{user.role}</small>
-          </span>
-          <button className="btn btn-outline" onClick={handleLogout}>
-            Sign out
+        <nav className="dash-nav" aria-label="Dashboard sections">
+          <span className="dash-nav-label">Menu</span>
+          <a className="dash-nav-item active" href="#overview">
+            <Icon name="grid" /> Overview
+          </a>
+          <a className="dash-nav-item" href="#projects">
+            <Icon name="folder" /> Projects
+            <em className="dash-nav-count">{projects.length}</em>
+          </a>
+        </nav>
+
+        <div className="dash-side-foot">
+          <div className="dash-side-user">
+            <span className="avatar">{initials(user.name)}</span>
+            <span className="dash-side-user-name">
+              {user.name}
+              <small>{user.role}</small>
+            </span>
+          </div>
+          <Link className="dash-side-link" to="/">
+            <Icon name="globe" size={16} /> View site
+          </Link>
+          <button className="dash-side-link" onClick={handleLogout}>
+            <Icon name="logout" size={16} /> Sign out
           </button>
         </div>
-      </header>
+      </aside>
 
-      <main className="dash-main">
-        <div className="dash-head">
-          <div>
-            <span className="eyebrow">Your workspace</span>
-            <h1>Welcome back, {user.name.split(" ")[0]}</h1>
+      <div className="dash-body">
+        <header className="dash-top">
+          <div className="dash-crumbs">
+            Workspace <span>/</span> <strong>Dashboard</strong>
           </div>
-          <button className="btn btn-primary" onClick={showForm ? closeForm : openCreate}>
-            {showForm ? "Close" : "+ New project"}
-          </button>
-        </div>
+          <div className="dash-top-right">
+            <span className="dash-date">
+              {new Date().toLocaleDateString(undefined, {
+                weekday: "long",
+                month: "short",
+                day: "numeric",
+              })}
+            </span>
+            <button className="btn btn-primary" onClick={showForm ? closeForm : openCreate}>
+              {showForm ? (
+                "Close"
+              ) : (
+                <>
+                  <Icon name="plus" size={16} /> New project
+                </>
+              )}
+            </button>
+          </div>
+        </header>
 
-        {error && (
-          <div className="alert alert-error" role="alert">
-            {error}
-          </div>
-        )}
+        <main className="dash-main">
+          <section className="dash-welcome" id="overview">
+            <div>
+              <span className="eyebrow">Your workspace</span>
+              <h1>Welcome back, {user.name.split(" ")[0]} 👋</h1>
+              <p>Everything your team is shipping for clients, in one place.</p>
+            </div>
+            <span className={`dash-role dash-role-${user.role}`}>
+              {user.role === "admin" ? "Admin access" : "Member access"}
+            </span>
+          </section>
+
+          {error && (
+            <div className="alert alert-error" role="alert">
+              {error}
+            </div>
+          )}
 
         {showForm && (
           <form className="dash-form" onSubmit={handleSubmit}>
@@ -429,31 +565,78 @@ export default function Dashboard() {
 
         <section className="dash-stats">
           <div className="kpi">
-            <small>Projects</small>
-            <strong>{projects.length}</strong>
+            <span className="kpi-icon kpi-icon-brand">
+              <Icon name="folder" />
+            </span>
+            <div className="kpi-text">
+              <small>Projects</small>
+              <strong>{projects.length}</strong>
+              <span className="kpi-foot">
+                across {clients.length} client{clients.length === 1 ? "" : "s"}
+              </span>
+            </div>
           </div>
+
           <div className="kpi">
-            <small>Active</small>
-            <strong>{totals.active}</strong>
+            <span className="kpi-icon kpi-icon-sky">
+              <Icon name="bolt" />
+            </span>
+            <div className="kpi-text">
+              <small>Active</small>
+              <strong>{totals.active}</strong>
+              <span className="kpi-foot">
+                {projects.length - totals.active} delivered
+              </span>
+            </div>
           </div>
+
           <div className="kpi">
-            <small>Total budget</small>
-            <strong>${totals.budget.toLocaleString()}</strong>
+            <span className="kpi-icon kpi-icon-green">
+              <Icon name="cash" />
+            </span>
+            <div className="kpi-text">
+              <small>Total budget</small>
+              <strong>${totals.budget.toLocaleString()}</strong>
+              <span className="kpi-foot">
+                avg $
+                {Math.round(totals.budget / (projects.length || 1)).toLocaleString()} per
+                project
+              </span>
+            </div>
           </div>
+
           <div className="kpi">
-            <small>Avg. progress</small>
-            <strong>{totals.progress}%</strong>
+            <span className="kpi-icon kpi-icon-amber">
+              <Icon name="chart" />
+            </span>
+            <div className="kpi-text">
+              <small>Avg. progress</small>
+              <strong>{totals.progress}%</strong>
+              <span className="kpi-bar">
+                <span style={{ width: `${totals.progress}%` }} />
+              </span>
+            </div>
           </div>
         </section>
 
-        <section className="dash-panel">
+        <section className="dash-panel" id="projects">
           <div className="dash-panel-head">
-            <h2>Projects</h2>
-            <span>
-              {user.role === "admin"
-                ? "All projects — admin access"
-                : "Owned by or assigned to you"}
-            </span>
+            <div className="dash-panel-title">
+              <h2>Projects</h2>
+              <span>
+                {user.role === "admin"
+                  ? "All projects — admin access"
+                  : "Owned by or assigned to you"}
+              </span>
+            </div>
+            <div className="status-summary">
+              {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                <span className="status-dot" key={value}>
+                  <i style={{ background: STATUS_DOT[value] }} />
+                  {label} <b>{statusCounts[value] || 0}</b>
+                </span>
+              ))}
+            </div>
           </div>
 
           {loading ? (
@@ -464,16 +647,32 @@ export default function Dashboard() {
           ) : projects.length === 0 ? (
             <p className="empty">No projects yet — create your first one.</p>
           ) : (
-            <ul className="project-list">
+            <>
+              <div className="project-list-head">
+                <span>Project</span>
+                <span>Status</span>
+                <span>Client &amp; team</span>
+                <span>Progress</span>
+                <span className="col-right">Budget</span>
+                <span className="col-right">Actions</span>
+              </div>
+              <ul className="project-list">
               {projects.map((p) => {
                 const members = p.teamMembers || [];
                 return (
                   <li className="project-row" key={p._id}>
                     <div className="project-name">
-                      <strong>{p.name}</strong>
-                      <small className="project-desc">
-                        {p.description || "No description yet"}
-                      </small>
+                      <div className="project-title">
+                        <span className="monogram" style={monogramStyle(p.name)}>
+                          {(p.name || "?").trim().slice(0, 1).toUpperCase() || "?"}
+                        </span>
+                        <div className="project-title-text">
+                          <strong>{p.name}</strong>
+                          <small className="project-desc">
+                            {p.description || "No description yet"}
+                          </small>
+                        </div>
+                      </div>
                     </div>
 
                     {canManage(p) ? (
@@ -571,10 +770,18 @@ export default function Dashboard() {
                   </li>
                 );
               })}
-            </ul>
+              </ul>
+              <div className="dash-panel-foot">
+                <span>
+                  Showing {projects.length} project{projects.length === 1 ? "" : "s"}
+                </span>
+                <span>Owners &amp; admins can edit — teammates get read-only access</span>
+              </div>
+            </>
           )}
         </section>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
