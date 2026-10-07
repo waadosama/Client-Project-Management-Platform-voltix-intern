@@ -135,6 +135,13 @@ exactly **one client** (`Client` collection) and to **any number of team members
 Projects someone cannot see return **404** (existence is never leaked); projects they
 can see but not edit return **403**.
 
+**In the dashboard list** every project shows its **current status** (coloured badge),
+its **client**, and its **assigned team members** (initials avatars + names, full list on
+hover). Owners and admins change the status **in place** — the badge becomes a dropdown
+that sends only `{ status }` to `PUT /api/projects/:id` — while everything else
+(name, description, client, progress, budget, due date, team) is edited through the
+Edit form. Teammates see the badge read-only.
+
 ## API
 
 | Method | Endpoint           | Auth    | Description                                       |

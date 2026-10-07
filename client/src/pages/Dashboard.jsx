@@ -38,6 +38,13 @@ const initials = (name = "?") =>
     .join("")
     .toUpperCase() || "?";
 
+/** "Jane Doe" → "Jane D." — keeps the member list readable in a narrow column. */
+const shortName = (name = "") => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "";
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+};
+
 export default function Dashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -54,6 +61,7 @@ export default function Dashboard() {
   const [newClientName, setNewClientName] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [updatingId, setUpdatingId] = useState(null); // row whose status is saving
 
   useEffect(() => {
     let cancelled = false;
@@ -198,6 +206,25 @@ export default function Dashboard() {
       setError(err.message);
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  /**
+   * Quick status change straight from the list (owner or admin only — the API
+   * enforces the same rule). Sends just `{ status }`; the rest is untouched.
+   */
+  async function handleStatusChange(project, status) {
+    if (status === project.status) return;
+
+    setUpdatingId(project._id);
+    setError("");
+    try {
+      const res = await updateProject(project._id, { status });
+      setProjects((prev) => prev.map((p) => (p._id === project._id ? res.data : p)));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUpdatingId(null);
     }
   }
 
@@ -449,28 +476,58 @@ export default function Dashboard() {
                       </small>
                     </div>
 
-                    <span className={`badge badge-${p.status}`}>
-                      {STATUS_LABEL[p.status] || p.status}
-                    </span>
+                    {canManage(p) ? (
+                      <select
+                        className={`badge status-select badge-${p.status}`}
+                        value={p.status}
+                        disabled={updatingId === p._id}
+                        aria-label={`Status of ${p.name}`}
+                        onChange={(e) => handleStatusChange(p, e.target.value)}
+                      >
+                        {Object.entries(STATUS_LABEL).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={`badge badge-${p.status}`}>
+                        {STATUS_LABEL[p.status] || p.status}
+                      </span>
+                    )}
 
                     <div className="project-meta">
                       <span className="project-client">{p.client?.name || "No client"}</span>
-                      <div className="team-avatars">
-                        {members.length === 0 ? (
-                          <small className="hint">Nobody assigned</small>
-                        ) : (
-                          <>
-                            {members.slice(0, 3).map((m) => (
-                              <span className="avatar avatar-xs" key={m._id} title={m.name}>
-                                {initials(m.name)}
-                              </span>
-                            ))}
-                            {members.length > 3 && (
-                              <span className="avatar avatar-xs avatar-more">
-                                +{members.length - 3}
-                              </span>
-                            )}
-                          </>
+                      <div
+                        className="team-block"
+                        title={
+                          members.length
+                            ? `Assigned: ${members.map((m) => m.name).join(", ")}`
+                            : "Nobody assigned"
+                        }
+                      >
+                        <div className="team-avatars">
+                          {members.length === 0 ? (
+                            <small className="hint">Nobody assigned</small>
+                          ) : (
+                            <>
+                              {members.slice(0, 3).map((m) => (
+                                <span className="avatar avatar-xs" key={m._id} title={m.name}>
+                                  {initials(m.name)}
+                                </span>
+                              ))}
+                              {members.length > 3 && (
+                                <span className="avatar avatar-xs avatar-more">
+                                  +{members.length - 3}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </div>
+                        {members.length > 0 && (
+                          <small className="team-names">
+                            {members.map((m) => shortName(m.name)).join(", ")}
+                          </small>
                         )}
                       </div>
                     </div>
