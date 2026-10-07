@@ -118,11 +118,7 @@ export default function Login({ mode = "login" }) {
 
         {isSignup ? (
           <p className="auth-hint">New accounts get the <code>Member</code> role.</p>
-        ) : (
-          <p className="auth-hint">
-            Demo account: <code>admin@clientflow.io</code> / <code>Admin123!</code>
-          </p>
-        )}
+        ) : null}
 
         <p className="auth-foot">
           {isSignup ? (

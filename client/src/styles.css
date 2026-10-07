@@ -1658,6 +1658,39 @@ p {
 }
 
 /* ---------------- Responsive ---------------- */
+/* Between the sidebar breakpoint and a full desktop width the 6-column
+   table gets too tight — stack it into cards a bit earlier. */
+@media (max-width: 1200px) {
+  .dash-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-list-head {
+    display: none;
+  }
+
+  .project-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 12px;
+  }
+
+  .project-row .badge {
+    justify-self: end;
+  }
+
+  .project-row .project-meta,
+  .project-row .project-progress,
+  .project-row .project-budget,
+  .project-row .project-actions {
+    grid-column: 1 / -1;
+    text-align: left;
+  }
+
+  .project-row .project-actions {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 980px) {
   .hero {
     grid-template-columns: 1fr;
@@ -1686,6 +1719,7 @@ p {
     top: 0;
     z-index: 50;
     height: auto;
+    flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
     gap: 10px 14px;
@@ -1729,37 +1763,8 @@ p {
     display: none;
   }
 
-  .dash-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .dash-form {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .project-list-head {
-    display: none;
-  }
-
-  .project-row {
-    grid-template-columns: minmax(0, 1fr) auto;
-    row-gap: 12px;
-  }
-
-  .project-row .badge {
-    justify-self: end;
-  }
-
-  .project-row .project-meta,
-  .project-row .project-progress,
-  .project-row .project-budget,
-  .project-row .project-actions {
-    grid-column: 1 / -1;
-    text-align: left;
-  }
-
-  .project-row .project-actions {
-    justify-content: flex-start;
   }
 }
 
